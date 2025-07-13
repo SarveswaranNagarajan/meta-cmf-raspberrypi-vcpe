@@ -1,478 +1,717 @@
+# meta-cmf-raspberrypi-vcpe
+
 ![vCPE Diagram](doc/e2e.svg)
 
-# VCPE containers overview
+## Overview
 
-## vcpe containers
+**meta-cmf-raspberrypi-vcpe** is a comprehensive **Yocto/OpenEmbedded meta-layer** and **LXD container orchestration system** designed for **RDK-B (Reference Design Kit - Broadband) virtual Customer Premises Equipment (vCPE)** development, testing, and validation. This project creates a complete virtualized broadband gateway environment that simulates real-world network deployments without requiring physical hardware infrastructure.
 
-The vcpe containers run the full rdk-b (rpi) router / gateway stack. These containers are created from a rootfs that was built from a standard rdk-b rpi build with a modified machine/distro config. The (bare metal / no emulation) vcpe container is configured with a couple cpu's, memory, rootfs disk, wan, lan, and wlan interfaces, and an nvram volume which retains all persistent settings between reboots.
+## Table of Contents
 
-## bng containers
+- [Project Architecture](#project-architecture)
+- [Key Components](#key-components)
+- [Container Types](#container-types)
+- [Network Architecture](#network-architecture)
+- [Installation and Setup](#installation-and-setup)
+- [Usage Workflows](#usage-workflows)
+- [Development Guide](#development-guide)
+- [Testing and Validation](#testing-and-validation)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
 
-The bng containers (devuan chimaera) provide basic configuration and connectivity services to the wan-side of the cpe containers (similar to cmts / head-end / back-office). This includes: router.cfg tftp, dhcpv4/v6, radvd, dns, ntp, internet-gateway, etc. There are multiple pre-configured bng containers providing a specific real world market configuration. For instance bng-9 is configured for multi-vlan with a specific ip-pool. Each bng provides a wan (internet) and a cm (cmts) connection to the cpe containers.
+## Project Architecture
 
-## lan-client containers
+### Technology Stack
 
-lan clients (alpine) connect to a cpe lan port via the lan-p1 (/2/3/4) bridges (vlan). automatically comfigured with dhcp.
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Build System** | Yocto/OpenEmbedded (Kirkstone) | RDK-B image compilation and customization |
+| **Container Runtime** | LXD 6.1+ | System container management |
+| **Gateway Software** | RDK-B (CCSP Framework) | Broadband gateway functionality |
+| **Management Protocols** | TR-069, USP (TR-369), WebPA | Device management and configuration |
+| **Network Simulation** | Linux Bridges, VLAN, iptables | Realistic network topology |
+| **Testing Framework** | Automatics, Boardfarm | Automated test execution |
 
-## wlan-client containers
+### Repository Structure
 
-wlan clients (alpine) connect their wlan0 80211sim sta to 80211sim ap in the cpe. automatically configured with wpa_supplicant and dhcp.
+```
+meta-cmf-raspberrypi-vcpe/
+├── classes/                    # BitBake class extensions
+│   └── image_types_lxc.bbclass  # LXC container image generation
+├── conf/                       # Layer and machine configuration
+│   ├── layer.conf              # Yocto meta-layer definition
+│   └── machine/                # Target machine configurations
+├── doc/                        # Comprehensive documentation
+│   ├── automatics/             # Test automation setup
+│   ├── dac/                    # Container management docs
+│   ├── genieacs/               # Open-source ACS documentation
+│   └── vcpe/                   # vCPE container build guides
+├── gen/                        # LXD container orchestration scripts
+│   ├── *-base.sh               # Base container image creation
+│   ├── *.sh                    # Service container deployment
+│   ├── configs/                # Container configuration files
+│   └── profiles/               # LXD profile templates
+├── probes/                     # Debugging and analysis tools
+│   └── scripts/                # Log collection and parsing utilities
+├── recipes-ccsp/              # CCSP component customizations
+├── recipes-containers/         # Container runtime integration
+├── recipes-connectivity/       # Network component modifications
+├── recipes-core/               # Core system customizations
+├── recipes-rdkb/               # RDK-B specific enhancements
+└── recipes-vcpe/               # vCPE container initialization
+```
 
-## acs (axiros / genie) container (tr069)
+## Key Components
 
-The acs container (debian 7) contains an Axiros tr069 cwmp server stack. cpe containers will register and establish the tr069 protocol with the acs. In addition to the acs-ui, auto testing via (soap) is available as well. The Axiros acs image is available to licensees only.
+### 1. Yocto Meta-Layer (`conf/`, `classes/`, `recipes-*`)
 
-## oktopus container (usp)
+**Purpose**: Extends RDK-B builds to generate containerized gateway images
 
-The oktopus container (debian 12) contains the open source Oktopus usp controller stack. cpe containers run usp agent and will register and establish the usp over mqtt/stomp/websocket protocol with Oktopus. Oktopus services run in docker containers inside the oktopus container.
+**Key Features**:
+- **Custom Image Types**: Creates LXC-compatible container images from RDK-B builds
+- **CCSP Modifications**: Patches and configurations for TR-069, device profiles, and HAL components
+- **Container Integration**: Dobby and DSM container runtime support
+- **vCPE Initialization**: Container-specific startup services and configuration
 
-## webpa container
+**Target Platforms**:
+- **Primary**: x86 emulated broadband gateway (`qemux86broadband`)
+- **Architecture**: Supports ARM64 and x86_64 container deployment
+- **Compatibility**: Yocto Kirkstone (4.0) and RDK-B 2024+ releases
 
-The webpa container (centos-stream 9) contains the webpa server xmidt stack. cpe containers run webpa client and will register and establish the web-pa protocol with web-pa server.
+### 2. Container Orchestration System (`gen/`)
 
-## webconfig container
+**Purpose**: Creates and manages complete virtual broadband network environments
 
-The webconfig container (ubuntu 18.04) contains the webconfig server stack.
+**Features**:
+- **15+ Common Functions**: Standardized container lifecycle management
+- **Network Simulation**: Realistic ISP and customer network topology
+- **Service Integration**: TR-069, USP, WebPA, and cloud service simulators
+- **Automated Deployment**: One-command environment setup
+- **Resource Management**: Optimized container profiles and resource allocation
 
-## xconf container
+**Enhanced Documentation**: The `gen/` directory includes comprehensive documentation:
+- **[gen/README.md](gen/README.md)**: Complete container management guide
+- **[gen/API-REFERENCE.md](gen/API-REFERENCE.md)**: Function library documentation
+- **[gen/TROUBLESHOOTING.md](gen/TROUBLESHOOTING.md)**: Common issues and solutions
 
-The xconf container (ubuntu 18.04) contains the xconf server stack. cpe containers obtain telemetry config files from the xconf server.
+### 3. Testing and Debugging Infrastructure (`probes/`, `doc/`)
 
-## telemetry container
+**Purpose**: Comprehensive testing, monitoring, and debugging capabilities
 
-The telemetry container (ubuntu 20.04) contains the telemetry upload server stack. cpe containers upload telemetry data, and the server stores and presents the data (elasticsearch / kibana)
+**Components**:
+- **Automatics Framework**: RDK-B automated test execution
+- **Boardfarm Integration**: Hardware-in-the-loop testing
+- **Log Analysis Tools**: RDK log parsing and correlation
+- **Performance Monitoring**: Memory, CPU, and network analysis
 
-## automatics container
+## Container Types
 
-The automatics container (centos-stream 9) comprises the entire suite of automatics services in a single container. It is configured with a rpi provider, and can run rdkb-tests manually or from orchestration UI.
+### Service Containers
 
-## boardfarm container
+| Container | Purpose | Default IP | Key Ports | Base OS |
+|-----------|---------|------------|-----------|---------|
+| **acs** | Axiros TR-069 ACS Server | 10.10.10.200 | 80, 443 | Debian 7 |
+| **genieacs** | Open-source TR-069 ACS | 10.10.10.201 | 3000, 7547, 7557, 7567 | Ubuntu 22.04 |
+| **oktopus** | USP Controller (TR-369) | 10.10.10.220 | 80, 1883, 8080 | Debian 12 |
+| **webpa** | WebPA/Xmidt Server | 10.10.10.210 | 6200, 6201, 8080, 9003 | CentOS Stream 9 |
+| **xconf** | Configuration Server | 10.10.10.250 | 19093 | Ubuntu 18.04 |
+| **telemetry** | Data Collection Server | 10.10.10.251 | 5601, 9200 | Ubuntu 20.04 |
+| **webconfig** | WebConfig Server | 10.10.10.252 | 8080 | Ubuntu 18.04 |
 
-The boardfarm container (ubuntu 22.04) comprises the entire suite of boardfarm components in a single container. It is currently under development.
+### Infrastructure Containers
 
-# Bridges overview
+| Container | Purpose | Network Configuration | Key Features |
+|-----------|---------|----------------------|--------------|
+| **vcpe** | RDK-B Gateway | WAN + 4 LAN ports + WiFi | Full CCSP stack, TR-069/USP agents |
+| **bng-{customer}** | ISP Network Gateway | Multi-interface, VLAN support | DHCP, DNS, routing, TFTP |
+| **automatics** | Test Framework | Static IP with extensive routing | Maven, MySQL, test orchestration |
+| **boardfarm** | Hardware Testing | Docker-enabled | Physical device integration |
 
-## lxdbr1
+### Client Simulation Containers
 
-This bridge connects the service containers (acs, usp, webpa, etc.) to the bng containers, and provides host gateway (internet) access to the bng containers.
+| Container Type | Purpose | Network Connection | Base Image |
+|----------------|---------|-------------------|------------|
+| **client-lan-{device}-p{1-4}** | LAN client devices | Bridged to LAN ports with VLAN | Alpine Linux |
+| **client-wlan** | WiFi client devices | 802.11 simulation via mac80211_hwsim | Alpine Linux |
 
-## wan
+## Network Architecture
 
-cpe containers connect to bng containers using a common wan bridge (supporting single/multi/no - vlan) and a common cm bridge (docsis capable vcpe's).
+### Bridge Configuration
 
-## lan-p1/2/3/4
-lan clients connect to cpe containers lan ports using lan-p1..lan-p4 bridges. The cpe containers lan ports and the lan-p1.lan-p4 bridges are vlan configured allowing a large number of client connections to cpe containers lan ports.
+The system automatically creates and manages multiple network bridges:
 
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Service        │  │  Infrastructure │  │  Client         │
+│  Containers     │  │  Containers     │  │  Containers     │
+├─────────────────┤  ├─────────────────┤  ├─────────────────┤
+│ acs             │  │ bng-{customer}  │  │ client-lan-*    │
+│ genieacs        │  │ vcpe            │  │ client-wlan     │
+│ oktopus         │  │ automatics      │  │                 │
+│ webpa           │  │ boardfarm       │  │                 │
+│ xconf           │  │                 │  │                 │
+│ telemetry       │  │                 │  │                 │
+│ webconfig       │  │                 │  │                 │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+         │                      │                      │
+    ┌────▼────┐            ┌────▼────┐            ┌────▼────┐
+    │ lxdbr1  │            │   wan   │            │ lan-p1  │
+    │         │            │   cm    │            │ lan-p2  │
+    │10.10.10 │            │         │            │ lan-p3  │
+    │  .0/24  │            │         │            │ lan-p4  │
+    └─────────┘            └─────────┘            │br-wlan0 │
+                                                  │br-wlan1 │
+                                                  └─────────┘
+```
 
-# mac80211_hwsim
+### IP Address Allocation
 
-virtual wlan interfaces (wlan0..4) are created using mac80211_hwsim module. wlan0..3 are mapped into the vcpe container (accesspoint). wlan4 is mapped into the wlan-client (station). Wireless station(s) connect to wireless accesspoint(s) across container boundaries.
+| Network Segment | IP Range | Purpose |
+|-----------------|----------|---------|
+| **lxdbr1** | 10.10.10.0/24 | Service container communication |
+| **WAN Networks** | 10.107.200.0/24, 10.100.200.0/24 | vCPE WAN interfaces |
+| **LAN Networks** | 10.0.0.0/24, 192.168.x.0/24 | Client device networks |
+| **Management** | Variable per customer config | BNG management interfaces |
 
-# Installation
+### VLAN Configuration
 
-## Prerequisites
+- **LAN Ports**: VLAN-aware bridges supporting 802.1Q tagging
+- **Client Isolation**: VLAN ID 100 (default) for client containers
+- **Multi-tenant Support**: Customer-specific VLAN configurations
+- **WAN Flexibility**: Single-VLAN, multi-VLAN, or untagged configurations
 
-The Virtual CPE Environment runs on a x86 Linux host using LXD container manager. VCPE runs a large number of linux containers, and creates network interfaces and bridges. While it can run on a shared server, deploying it on a dedicated physical (or vm) server is recommended.
+## Installation and Setup
 
-Ubuntu 20/22/24 is recommended as it is known to work correctly for all cpe, bng, client, and service - container configurations. Verified with virtual box ubuntu-20.04.6/22.04.5/24.04.1-live-server-amd64.
+### Prerequisites
 
-## Install LXD
+#### System Requirements
+- **Operating System**: Ubuntu 20.04/22.04/24.04 LTS (recommended)
+- **Architecture**: x86_64 (primary), ARM64 (experimental)
+- **Memory**: 8GB RAM minimum, 16GB+ recommended
+- **Storage**: 50GB+ available disk space
+- **Network**: Internet connectivity for image downloads
 
-```text
+#### Software Dependencies
+- **LXD**: Version 6.1+ (installed via snap)
+- **Git**: For repository cloning
+- **Build Tools**: GCC, make, python3 (if building from source)
+
+### LXD Installation and Configuration
+
+```bash
+# Install LXD via snap
 sudo snap install lxd --channel=6.1
+
+# Initialize LXD (select all defaults)
+sudo lxd init
+
+# Add user to lxd group
+sudo usermod -a -G lxd $USER
+newgrp lxd
+
+# Test LXD installation
+lxc launch images:alpine/edge test
+lxc exec test -- ping -c 3 google.com
+lxc delete test --force
 ```
 
-## Initialize LXD
+### Repository Setup
 
-this is required once after a install or re-install. select all defaults.
-
-```text
-lxd init
-```
-
-## Test LXD
-
-Launch a container and perform an internet connectivity test:
-
-```text
-lxc launch images:alpine/edge edge
-lxc exec edge -- ping google.com -c 3
-lxc delete edge -f
-```
-
-# Install meta-cmf-raspberrypi-vcpe (this repo)
-
-meta-cmf-raspberrypi-vcpe contains shell scripts to manage the VCPE environment (located in /gen). Scripts required for running various vcpe tests, and scripts required for obtaining and processing vcpe data, including a large number of debug and visualization tooling scripts known as probes are located in /probes (initial limited version). /doc contains additional documentation. /recipes is part of the vcpe container (yocto) meta-layer for building a vcpe rpi image.
-
-Clone the repo:
-
-```text
+```bash
+# Create workspace directory
 mkdir -p $HOME/git
-cd $_
+cd $HOME/git
 
-git clone ssh://git@bitbucket.upc.biz:7999/~rvogelaar/meta-cmf-raspberrypi-vcpe.git
+# Clone repository
+git clone https://github.com/robvogelaar/meta-cmf-raspberrypi-vcpe.git
+cd meta-cmf-raspberrypi-vcpe
 
-/
-
-git clone https://github.com/robvogelaar/meta-cmf-raspberrypi-vcpe
-
+# Add to system PATH (optional but recommended)
+echo 'export PATH="$HOME/git/meta-cmf-raspberrypi-vcpe/gen:$PATH"' >> ~/.bashrc
+echo 'export PATH="$HOME/git/meta-cmf-raspberrypi-vcpe/probes/scripts:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-Add meta-cmf-raspberrypi-vcpe to system PATH:
+### Network Infrastructure Setup
 
-```text
-vi ~/.textrc
-export PATH="$HOME/git/meta-cmf-raspberrypi-vcpe/gen:$PATH"
-export PATH="$HOME/git/meta-cmf-raspberrypi-vcpe/probes/scripts:$PATH"
-source ~/.textrc
+```bash
+# Initialize network bridges (required after each host reboot)
+cd gen
+./bridges.sh
 
-# it is recommended to run all the vcpe scripts from this directory
-cd $HOME/git/meta-cmf-raspberrypi-vcpe
-
+# Verify bridge creation
+lxc network list
+ip link show type bridge
 ```
 
-## Install VCPE bridges
+### Quick Environment Validation
 
-Required once after a host reboot. Run the bridges.sh script:
+```bash
+# Test basic functionality
+cd gen
+source gen-util.sh
+check_lxd_version
 
-```text
-bridges.sh
-```
+# Create a simple test environment
+./genieacs.sh        # TR-069 ACS server
+./bng.sh 7          # BNG for customer 7
+./client-lan.sh vcpe-p1  # Test client on port 1
 
-## Install ACS container
-
-Run the acs.sh / genieacs.sh script:
-
-Note: as part of the acs container creation, an encrypted Axiros container image is obtained from dropbox available to licensees only.
-
-```text
-acs.sh
-genieacs.sh
-
+# Verify containers are running
 lxc list
-+-----------+---------+------------------------+----------------------------------------------+
-| acs       | RUNNING | 10.10.10.200 (eth0)    | 2001:dbf:0:1::200 (eth0)                     |
-|           |         |                        | 2001:dbf:0:1:216:3eff:fe38:11ab (eth0)       |
-+-----------+---------+------------------------+----------------------------------------------+
-| genieacs  | RUNNING | 10.10.10.201 (eth0)    | 2001:dbf:0:1::201 (eth0)                     |
-|           |         |                        | 2001:dbf:0:1:216:3eff:fe38:11ac (eth0)       |
-+-----------+---------+------------------------+----------------------------------------------+
 ```
 
-the axiros acs UI will be at 10.10.10.200:80
-the genie acs UI will be at 10.10.10.201:3000
+## Usage Workflows
 
-## Install Oktopus container
+### 1. Development Workflow
 
-Run the oktopus.sh script:
+#### Building vCPE Images (Yocto)
 
-```text
-oktopus.sh
+```bash
+# Set up Yocto build environment
+source oe-init-build-env
 
+# Add meta-cmf-raspberrypi-vcpe to bblayers.conf
+bitbake-layers add-layer /path/to/meta-cmf-raspberrypi-vcpe
+
+# Configure for vCPE target
+echo 'MACHINE = "qemux86broadband"' >> conf/local.conf
+echo 'IMAGE_FSTYPES += "lxc"' >> conf/local.conf
+
+# Build vCPE container image
+bitbake rdk-generic-broadband-image
+```
+
+#### Deploying Built Images
+
+```bash
+# Deploy built image to container
+cd gen
+./vcpe.sh user@build-host:/path/to/rdk-generic-broadband-image-qemux86broadband.lxc.tar.bz2
+
+# Verify deployment
 lxc list
-+----------+---------+--------------------------------+----------------------------------------+
-| oktopus  | RUNNING | 172.17.0.1 (docker0)           | 2001:dbf:0:1::220 (eth0)               |
-|          |         | 172.16.235.1 (br-ab31f132a111) | 2001:dbf:0:1:216:3eff:fe25:904c (eth0) |
-|          |         | 10.10.10.220 (eth0)            |                                        |
-+----------+---------+--------------------------------+----------------------------------------+
+lxc exec vcpe -- dmcli eRT getv Device.DeviceInfo.
 ```
 
-the Oktopus UI will be at 10.10.10.220:80
+### 2. Testing Workflow
 
-the default transport will be mqtt.
+#### Complete Test Environment Setup
 
-If cpe does not show in oktopus UI or cannot be interacted with, then delete the cpe in oktopus UI, and restart the agent on the cpe:
+```bash
+cd gen
 
-```text
-lxc exec vcpe -- systemctl restart usp-pa
+# Create infrastructure services
+./genieacs.sh                    # TR-069 ACS
+./oktopus.sh                     # USP controller
+./webpa.sh                       # WebPA server
+
+# Create network infrastructure
+./bng.sh 7                       # ISP network simulation
+
+# Deploy vCPE container
+./vcpe.sh user@host:/path/to/image.lxc.tar.bz2
+
+# Create test clients
+./client-lan.sh vcpe-p1          # LAN client on port 1
+./client-wlan.sh                 # WiFi client
+
+# Set up testing framework
+./automatics.sh                  # Automated testing
+./boardfarm.sh                   # Hardware integration testing
 ```
 
-## Install WebPA (Xmidt) container
+#### Running Automated Tests
 
-Run the webpa.sh script to install webpa container
+```bash
+# Access Automatics web interface
+echo "Automatics UI: http://$(lxc list automatics -c 4 --format csv | cut -d' ' -f1):8080/Automatics/"
 
-```text
-webpa.sh
+# Run specific test cases
+lxc exec automatics -- /opt/run-specific-test.sh TC-RDKB-WEBUI-1001
 
-lxc list
-
-+-------+---------+----------------------+---------------------------+
-| webpa | RUNNING | 10.10.10.210 (eth0)  | 2001:dbf:0:1::210 (eth0)  |
-+-------+---------+----------------------+---------------------------+
+# Monitor test execution
+lxc exec automatics -- tail -f /var/log/automatics/test-execution.log
 ```
 
-the webpa api will be:
+### 3. Protocol Testing Workflows
 
-```text
+#### TR-069 Testing
 
-curl -H 'Authorization:Basic dXNlcjEyMzp3ZWJwYUAxMjM0NTY3ODkw' http://10.10.10.210:8080/api/v2/devices
+```bash
+# Set up TR-069 environment
+./genieacs.sh
+./bng.sh 7
+./vcpe.sh user@host:/path/to/image.lxc.tar.bz2
 
-{"devices":[{"id": "mac:00163e08c00f", "pending": 0, "statistics": {"bytesSent": 192, "messagesSent": 1, "bytesReceived": 3622, "messagesReceived": 6, "duplications": 0, "connectedAt": "2024-12-06T23:22:13.83241117Z", "upTime": "14m53.977362322s"}}]}
+# Access GenieACS UI
+echo "GenieACS UI: http://$(lxc list genieacs -c 4 --format csv | cut -d' ' -f1):3000"
 
-curl -H 'Authorization:Basic dXNlcjEyMzp3ZWJwYUAxMjM0NTY3ODkw' http://10.10.10.210:9003/api/v2/device/mac:00163e08c00f/config?names=Device.DeviceInfo.ModelName
-{"parameters":[{"name":"Device.DeviceInfo.ModelName","value":"F3896LG","dataType":0,"parameterCount":1,"message":"Success"}],"statusCode":200}rev@rev120:~/git/meta-lxd$
-
+# Verify TR-069 connection
+lxc exec vcpe -- tail -f /rdklogs/logs/TR69Agent.log.txt.0
 ```
 
-## Install BNG containers
+#### USP (TR-369) Testing
 
-Run the bng.sh script to install bng-7 (ie. non-vlan bng)
+```bash
+# Set up USP environment
+./oktopus.sh
+./bng.sh 9    # Customer 9 supports USP
+./vcpe.sh user@host:/path/to/image.lxc.tar.bz2
 
-Note: This will first create a bng base container. This is a one-time process that will take several minutes to complete, as it builds a container image from scratch. Please be patient during this initial setup.
+# Access Oktopus UI
+echo "Oktopus UI: http://$(lxc list oktopus -c 4 --format csv | cut -d' ' -f1):80"
 
-```text
-bng.sh 7
-
-lxc list
-+--------+---------+--------------------------+-------------------------------+
-|  NAME  |  STATE  |           IPV4           |             IPV6              |
-+--------+---------+--------------------------+-------------------------------+
-| bng-7  | RUNNING | 10.107.201.1 (eth2)      | 2001:dbf:0:1::107 (eth0)      |
-|        |         | 10.107.200.1 (eth1)      | 2001:daf:7:1::129 (eth2)      |
-|        |         | 10.10.10.107 (eth0)      | 2001:dae:7:1::129 (eth1)      |
-+--------+---------+--------------------------+-------------------------------+
+# Monitor USP agent
+lxc exec vcpe -- systemctl status usp-pa
+lxc exec vcpe -- tail -f /rdklogs/logs/usp-pa.log.txt.0
 ```
 
+#### WebPA Testing
 
-## Install VCPE container
+```bash
+# Set up WebPA environment
+./webpa.sh
+./vcpe.sh user@host:/path/to/image.lxc.tar.bz2
 
-Run the vcpe.sh user@host:/path-to-container-image script to install vcpe container:
+# Test WebPA API
+webpa_ip=$(lxc list webpa -c 4 --format csv | cut -d' ' -f1)
+curl -H 'Authorization:Basic dXNlcjEyMzp3ZWJwYUAxMjM0NTY3ODkw' \
+     http://$webpa_ip:8080/api/v2/devices
 
-Shell into the container to check processes, datamodel etc.
-
-It is recommended to at least once run a factory default inside the vcpe container using the appropriate command syscfg / dmcli etc.
-
-e.g. dmcli eRT setv Device.X_CISCO_COM_DeviceControl.FactoryReset string "Router,Wifi"
-
-a factory default will eventually reboot the container at which time you will be kicked out of the container shell, you can immediately shell back in.
-
-Once the vcpe container is running it should take < 10 seconds for the lan and wan (erouter0) side to be completely configured with ip4/6.
-
-Note: the cpe container command history will be saved in /nvram/, to write the history file, exit and re-enter the container, the history will remain available upon a container reboot.
-
-```text
-
-vcpe.sh rev@rev140:/home/rev/yocto/rdkb-2025q1-kirkstone-nosrc-0601/build-qemux86broadband/tmp/deploy/images/qemux86broadband/rdk-generic-broadband-image-qemux86broadband.lxc.tar.bz2
-
-lxc list
-+--------+---------+---------------------------+---------------------------------------------+
-| vcpe   | RUNNING | 192.168.245.1 (br403)     | 3001:dae:0:e900:216:3eff:fe16:5f7c (brlan0) |
-|        |         | 192.168.106.1 (br106)     | 2001:dae:7:1::254 (erouter0)                |
-|        |         | 192.168.101.3 (br0)       |                                             |
-|        |         | 10.107.200.100 (erouter0) |                                             |
-|        |         | 10.0.0.1 (brlan0)         |                                             |
-+--------+---------+---------------------------+---------------------------------------------+
-
-lxc exec vcpe bash
-root@RaspberryPi-Gateway:~$ ps / top /etc.
-root@RaspberryPi-Gateway:~$ dmcli eRT getv Device.DeviceInfo.
-root@RaspberryPi-Gateway:~$ systemd-analyze plot
+# Get device parameters
+device_id="mac:00163e08c00f"  # Replace with actual device MAC
+curl -H 'Authorization:Basic dXNlcjEyMzp3ZWJwYUAxMjM0NTY3ODkw' \
+     "http://$webpa_ip:9003/api/v2/device/$device_id/config?names=Device.DeviceInfo.ModelName"
 ```
 
-## Install (lan/wlan) client containers
+## Development Guide
 
-Run the client-lan / wlan script.
+### Adding New Container Types
 
-```text
-client-lan.sh vcpe-p1
-client-wlan.sh
+1. **Create Base Image Script** (if needed):
+```bash
+# Example: new-service-base.sh
+#!/bin/bash
+source gen-util.sh
 
-lxc list
-
-+--------------------+---------+---------------------------+---------------------------------------------+
-| client-lan-vcpe-p1 | RUNNING | 10.0.0.158 (eth0)         | 3001:dae:0:e900:216:3eff:fee8:4dc (eth0)    |
-+--------------------+---------+---------------------------+---------------------------------------------+
-| client-wlan        | RUNNING | 10.0.0.152 (wlan0)        | 3001:dae:0:e900:0:ff:fe00:400 (wlan0)       |
-+--------------------+---------+---------------------------+---------------------------------------------+
+container_name="new-service-base"
+# Implementation using common functions
+create_standard_container "ubuntu-22.04" "$container_name" "$profile_config"
+# Install and configure service
+install_common_packages "$container_name" "service-package"
+# Publish as image
+lxc publish "$container_name" --alias new-service-base
 ```
 
-## Access the webui
+2. **Create Service Container Script**:
+```bash
+# Example: new-service.sh
+#!/bin/bash
+source gen-util.sh
 
-lxc config device add client-wlan http-proxy proxy listen=tcp:0.0.0.0:8080 connect=tcp:10.0.0.1:80
-
-webui is now available on host :8080
-
-## Install xconf telemetry automatics
-
-Run the appropriate scripts. All of these scripts will create a base image the very first time (when the base image does not yet exist).
-
-```text
-xconf.sh
-telemetry.sh
-automatics.sh
-
-lxc list
-
+ensure_base_image "new-service-base" "new-service-base.sh"
+create_standard_container "new-service-base" "new-service" "$profile_config"
 ```
 
-## Connect physical CPE's
-
-Connect the CPE wan to the container host using a usb eth adapter and add the usb eth interface into the wan bridge. Restart the device and it will obtain ip from the bng container.
-
-```text
-sudo ip link set enxXXX master wan
+3. **Add Configuration Files** to `gen/configs/`:
+```bash
+# Add network configuration
+new-service-50-cloud-init.yaml    # Netplan configuration
+new-service.conf                  # Service configuration
 ```
 
+4. **Document the Service** in README.md and API reference
 
-## Access the service container services ip, and ports
+### Extending Yocto Recipes
 
-```text
+#### Adding New CCSP Components
 
-###############################################################################################
-# acs:
-#       10.10.10.200 | 2001:dbf:0:1::200 (eth0)
-#       ssh -L 192.168.2.120:8888:10.10.10.200:80 rev@192.168.2.120
-#
-# ui:
-#       http://192.168.2.120:8888
-#
-###############################################################################################
-# webpa:
-#       10.10.10.210 | 2001:dbf:0:1::210 (eth0)
-#
-###############################################################################################
-# oktopus:
-#       10.10.10.220 | 2001:dbf:0:1::220 (eth0)
-#       ssh -L 192.168.2.120:7777:10.10.10.220:80 rev@192.168.2.120
-#
-# ui:
-#       http://192.168.2.120:7777
-#
-###############################################################################################
-# automatics:
-#       10.10.10.240 | 2001:dbf:0:1::240 (eth0)
-#       ssh -L 192.168.2.120:5555:10.10.10.240:8080 rev@192.168.2.120
-#
-# automatics-orchestration:
-#
-#       http://192.168.2.120:5555/Automatics/login.htm
-#       admin
-#       ""
-#
-# automatics-props:
-#       http://192.168.2.120:5555/AutomaticsProps/automatics/deviceConfig
-#       http://192.168.2.120:5555/AutomaticsProps/automatics/property
-#
-#       john
-#       Winner@123
-#
-# device manager:
-#       http://192.168.2.120:5555/DeviceManagerUI/login.html
-#       admin
-#       ""
-#
-#       http://192.168.2.120:5555/DeviceManager/swagger-ui.html
-#
-###############################################################################################
-# xconf:
-#       10.10.10.250 | 2001:dbf:0:1::250 (eth0)
-#       ssh -L 192.168.2.120:19093:10.10.10.250:19093 rev@192.168.2.120
-#
-# ui:
-#       http://192.168.2.120:19093
-#
-###############################################################################################
-# telemetry:
-#       10.10.10.251 | 2001:dbf:0:1::251 (eth0)
-#       ssh -L 192.168.2.120:5601:10.10.10.251:5601 rev@192.168.2.120
-#
-# ui (elastic):
-#       http://192.168.2.120:5601
-#
+```bash
+# Create new recipe directory
+mkdir -p recipes-ccsp/my-component
+
+# Create recipe file
+cat > recipes-ccsp/my-component/my-component.bbappend << 'EOF'
+FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
+
+# Add custom patches
+SRC_URI += "file://0001-my-custom-changes.patch"
+
+# Custom configuration
+do_install:append() {
+    install -d ${D}${sysconfdir}/my-component
+    install -m 644 ${WORKDIR}/my-config.conf ${D}${sysconfdir}/my-component/
+}
+EOF
 ```
 
-## Container management:
+#### Modifying Container Initialization
 
-list all containers / images / profiles / volumes
-```text
-lxc list
-lxc image list
-lxc profile list
-lxc storage volume list
+```bash
+# Extend recipes-vcpe/vcpe/
+SRC_URI += "file://my-custom-init.sh"
+
+do_install:append() {
+    install -m 755 ${WORKDIR}/my-custom-init.sh ${D}${systemd_unitdir}/scripts/
+}
 ```
 
-enter a cpe container's console
+### Best Practices
 
-ctrl a + q   to quit
+1. **Use Common Functions**: Always source `gen-util.sh` and use standardized functions
+2. **Follow Naming Conventions**: Use consistent container and profile naming
+3. **Document Changes**: Update relevant documentation files
+4. **Test Thoroughly**: Validate in clean environment before committing
+5. **Resource Management**: Set appropriate limits for container resources
 
-```text
-lxc console vcpe
+## Testing and Validation
+
+### Container Health Monitoring
+
+```bash
+# System health check
+cd gen
+source gen-util.sh
+./health-check.sh  # Custom script for comprehensive system check
+
+# Individual container diagnostics
+./diagnose-container.sh container-name
+
+# Network connectivity testing
+./test-network.sh
 ```
 
-enter a shell on a cpe container
-```text
-lxc exec vcpe bash
+### Automated Test Execution
+
+#### Automatics Framework
+
+```bash
+# Access test orchestration UI
+automatics_ip=$(lxc list automatics -c 4 --format csv | cut -d' ' -f1)
+echo "Open: http://$automatics_ip:8080/Automatics/login.htm"
+echo "Credentials: admin / (blank)"
+
+# Direct test execution
+lxc exec automatics -- /opt/run-test-suite.sh RDKB_BASIC_TESTS
+
+# View test results
+lxc exec automatics -- cat /opt/automatics/test-results/latest-results.xml
 ```
 
-run a command in a container
-```text
-lxc exec vcpe bash -- dmcli eRT getv Device.DeviceInfo.
+#### Boardfarm Integration
+
+```bash
+# Hardware-in-the-loop testing
+./boardfarm.sh
+boardfarm_ip=$(lxc list boardfarm -c 4 --format csv | cut -d' ' -f1)
+
+# Connect physical device for testing
+sudo ip link set enx<usb-eth-adapter> master wan
+
+# Run boardfarm tests
+lxc exec boardfarm -- boardfarm -m test_suite.json
 ```
 
-pull a file from a container
-```text
-lxc file pull vcpe/rdklogs/logs/WANManager.log.txt.0 .
+### Performance Testing
+
+#### Resource Usage Monitoring
+
+```bash
+# Monitor container resource usage
+lxc info --show-log container-name
+lxc exec container-name -- top
+lxc exec container-name -- free -h
+
+# Network performance testing
+lxc exec client-lan-vcpe-p1 -- iperf3 -c 10.0.0.1 -t 60
+lxc exec vcpe -- iperf3 -s
 ```
 
-push a file to a container
-```text
-lxc file push debug.ini vcpe/etc/debug.ini
+#### Stress Testing
+
+```bash
+# Create multiple client containers
+for i in {1..20}; do
+    ./client-lan.sh test-client-$i-p$((i % 4 + 1))
+done
+
+# Monitor system performance
+htop
+iotop
+netstat -i
 ```
 
-stop start restart (reboot) a container
+## Troubleshooting
 
-Note: stopping (restarting) a container is a graceful procedure and can take a few seconds to finish (due to dhcp release). A container can be forced stopped or restarted using the -f option. In this case ctrl-c twice to break the pending action and rerun the action with -f. or we can restart with console, to see the entire console during shutdown and startup
+### Common Issues and Solutions
 
+For comprehensive troubleshooting information, see **[gen/TROUBLESHOOTING.md](gen/TROUBLESHOOTING.md)**.
 
-```text
-lxc stop vcpe
-lxc start vcpe
-lxc restart vcpe
-lxc restart vcpe -f
+#### Quick Diagnostics
 
-lxc restart vcpe --console
+```bash
+# Check LXD status
+systemctl status lxd
+lxc version
 
+# Verify network bridges
+ip link show type bridge
+lxc network list
+
+# Container connectivity test
+lxc exec container-name -- ping -c 3 8.8.8.8
+
+# Check container logs
+lxc info --show-log container-name
+lxc exec container-name -- journalctl -u service-name
 ```
 
-reboot a container
+#### Emergency Recovery
 
-```text
-lxc exec vcpe bash
-root@RaspberryPi-Gateway:~$ reboot
-#leaves the shell
+```bash
+# Reset network configuration
+sudo systemctl restart lxd
+./bridges.sh
+
+# Container recovery
+lxc stop container-name --force
+lxc start container-name
+
+# Complete environment reset (USE WITH CAUTION)
+./emergency-reset.sh  # See troubleshooting guide
 ```
 
+### Log Analysis
 
-# Probes
+```bash
+# Collect RDK logs from vCPE
+cd probes/scripts
+./getrdklogs.sh vcpe
 
-## getrdklogs
-```text
-getrdklogs.sh vcpe
+# Analyze collected logs
+./parse-rssfree-log.py vcpe-logs/rssfree.log
+./combine-logs.py vcpe-logs/
 ```
 
-## getlogs
-```text
-getlogs.sh vcpe
+## Documentation
+
+### Available Documentation
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| **Project Overview** | This README | README.md |
+| **Container Management** | Complete container orchestration guide | [gen/README.md](gen/README.md) |
+| **API Reference** | Function library documentation | [gen/API-REFERENCE.md](gen/API-REFERENCE.md) |
+| **Troubleshooting** | Common issues and solutions | [gen/TROUBLESHOOTING.md](gen/TROUBLESHOOTING.md) |
+| **Documentation Index** | Navigation guide | [gen/DOCUMENTATION-INDEX.md](gen/DOCUMENTATION-INDEX.md) |
+
+### Component-Specific Documentation
+
+| Component | Documentation Location |
+|-----------|----------------------|
+| **Automatics** | [doc/automatics/README.md](doc/automatics/README.md) |
+| **GenieACS** | [doc/genieacs/README.md](doc/genieacs/README.md) |
+| **vCPE Containers** | [doc/vcpe/README.md](doc/vcpe/README.md) |
+| **DAC (Deployment)** | [doc/dac/README.md](doc/dac/README.md) |
+
+### Getting Help
+
+1. **Check Documentation**: Start with relevant README files
+2. **Review Troubleshooting**: Common solutions in troubleshooting guides
+3. **Examine Examples**: Study existing container scripts for patterns
+4. **Community Support**: Engage with RDK-B community forums
+5. **Issue Reporting**: Submit issues via project repository
+
+## Advanced Topics
+
+### Multi-Customer Environments
+
+```bash
+# Deploy multiple customer configurations
+./bng.sh 7    # Customer 7 - single VLAN
+./bng.sh 9    # Customer 9 - multi-VLAN
+./bng.sh 68   # Customer 68 - special configuration
+
+# Deploy corresponding vCPE containers
+./vcpe.sh user@host:/path/to/cust7-image.lxc.tar.bz2
+mv vcpe vcpe-cust7
+./vcpe.sh user@host:/path/to/cust9-image.lxc.tar.bz2
+mv vcpe vcpe-cust9
 ```
 
+### Physical Device Integration
 
-## acs tests
+```bash
+# Connect physical CPE to container environment
+sudo ip link set enx<adapter> master wan
 
-## usp tests
+# Monitor physical device connectivity
+lxc exec bng-7 -- tcpdump -i eth1 host <cpe-mac-address>
 
-## webpa tests
-
-# LXD UI
-
-# LXD Metrics
-
-
-## After a host reboot
-
-All containers will come up in the stopped state, they all require a lxc start. All VCPE bridges (except lxdbr1) have to be re-created by running the bridges.sh script.
-
-## Uninstall LXD from snap
-
-```text
-sudo snap remove lxd --purge
+# Configure physical device for container ACS
+# Set TR-069 ACS URL to container IP:
+# http://10.10.10.201:7547  (for GenieACS)
 ```
+
+### CI/CD Integration
+
+```bash
+# Automated environment setup for CI
+#!/bin/bash
+set -e
+
+# Environment setup
+cd gen
+./bridges.sh
+./genieacs.sh
+./bng.sh 7
+./vcpe.sh "$BUILD_ARTIFACT_URL"
+
+# Wait for services to be ready
+sleep 60
+
+# Run automated tests
+lxc exec automatics -- /opt/run-ci-tests.sh
+
+# Collect results
+./getrdklogs.sh vcpe
+./collect-test-results.sh
+
+# Cleanup
+./cleanup-environment.sh
+```
+
+## Contributing
+
+### Development Workflow
+
+1. **Fork Repository**: Create personal fork for development
+2. **Create Feature Branch**: Use descriptive branch names
+3. **Follow Standards**: Adhere to existing code and documentation patterns
+4. **Test Changes**: Validate in clean environment
+5. **Update Documentation**: Keep documentation current with changes
+6. **Submit Pull Request**: Include comprehensive description of changes
+
+### Code Standards
+
+- **Shell Scripts**: Follow existing patterns in `gen/` directory
+- **Yocto Recipes**: Use standard BitBake conventions
+- **Documentation**: Use Markdown with clear structure
+- **Container Profiles**: Follow resource allocation guidelines
+- **Network Configuration**: Maintain IP allocation standards
+
+## License
+
+This project is licensed under the MIT License. See [COPYING.MIT](COPYING.MIT) for details.
+
+## Support and Community
+
+- **RDK Central**: [https://wiki.rdkcentral.com/](https://wiki.rdkcentral.com/)
+- **RDK-B Documentation**: [https://wiki.rdkcentral.com/display/RDK/RDK-B](https://wiki.rdkcentral.com/display/RDK/RDK-B)
+- **LXD Documentation**: [https://linuxcontainers.org/lxd/docs/master/](https://linuxcontainers.org/lxd/docs/master/)
+- **Yocto Project**: [https://www.yoctoproject.org/](https://www.yoctoproject.org/)
+
+---
+
+**meta-cmf-raspberrypi-vcpe** provides a complete solution for RDK-B development, testing, and validation through sophisticated containerization and network simulation capabilities. Whether you're developing gateway software, validating protocol implementations, or testing interoperability scenarios, this project offers the tools and infrastructure needed for efficient and comprehensive broadband gateway development.

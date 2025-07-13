@@ -4,27 +4,11 @@ source gen-util.sh
 
 container_name="automatics"
 
-if ! lxc image list | grep -q "automatics-base"; then
-    echo "Creating automatics-base image"
-    automatics-base.sh
-fi
+# Ensure base image exists
+ensure_base_image "automatics-base" "automatics-base.sh"
 
-
-########################################################################################
-# Delete container if exists
-
-lxc delete ${container_name} -f 2>/dev/null
-
-########################################################################################
-# Create the profile
-
-if lxc profile list --format csv | grep -q "^${container_name}"; then
-    lxc profile delete ${container_name} 1> /dev/null
-fi
-lxc profile copy default ${container_name}
-
-cat << EOF | lxc profile edit ${container_name}
-name: automatics
+# Profile configuration
+profile_config='name: automatics
 description: "automatics"
 config:
     boot.autostart: "false"
@@ -41,25 +25,24 @@ devices:
         path: /
         pool: default
         type: disk
-        size: 2GiB
-EOF
+        size: 2GiB'
+
+# Create container using standard function
+create_standard_container "automatics-base" "$container_name" "$profile_config"
 
 ########################################################################################
-## set timezone
-
-#lxc profile set ${container_name} environment.TZ $(date +%z | awk '{printf("PST8PDT,M3.2.0,M11.1.0")}')
-
-lxc launch automatics-base ${container_name} -p ${container_name}
-
-########################################################################################
-# reconfigure network
+# Network configuration
 
 sleep 5
 
-lxc file push $M_ROOT/gen/configs/automatics.eth0.nmconnection ${container_name}/etc/NetworkManager/system-connections/eth0.nmconnection
-lxc exec ${container_name} -- chmod 600 /etc/NetworkManager/system-connections/eth0.nmconnection
-lxc exec ${container_name} -- chown root:root /etc/NetworkManager/system-connections/eth0.nmconnection
+# Copy network configuration
+copy_config_file "$M_ROOT/gen/configs/automatics.eth0.nmconnection" \
+    "$container_name" "/etc/NetworkManager/system-connections/eth0.nmconnection" 600
+
+# Restart NetworkManager and configure routes
 lxc exec ${container_name} -- systemctl restart NetworkManager
+
+# Configure automatics-specific routes
 lxc exec ${container_name} -- nmcli connection modify eth0 +ipv4.routes "10.100.200.0/24 10.10.10.100"
 lxc exec ${container_name} -- nmcli connection modify eth0 +ipv4.routes "10.107.200.0/24 10.10.10.107"
 lxc exec ${container_name} -- nmcli connection modify eth0 +ipv4.routes "10.108.200.0/24 10.10.10.108"
@@ -255,8 +238,7 @@ lxc exec ${container_name} -- bash -c 'cd /root/scriptless-service/RackDataServi
 
 # Install systemd service
 
-lxc exec ${container_name} -- tee /etc/systemd/system/rackdata.service << 'EOF'
-[Unit]
+rackdata_service='[Unit]
 Description=Rack Data Service
 After=network.target
 
@@ -271,12 +253,10 @@ StandardOutput=file:/root/scriptless-service/RackDataService/target/logfile.log
 StandardError=file:/root/scriptless-service/RackDataService/target/logfile.log
 
 [Install]
-WantedBy=multi-user.target
-EOF
+WantedBy=multi-user.target'
 
-lxc exec ${container_name} -- systemctl daemon-reload
-lxc exec ${container_name} -- systemctl enable rackdata
-lxc exec ${container_name} -- systemctl start rackdata
+create_systemd_service "$container_name" "rackdata" "$rackdata_service"
+start_systemd_service "$container_name" "rackdata"
 
 ###################################################################################################################################
 ###################################################################################################################################
