@@ -150,6 +150,10 @@ build_and_run_docker() {
     lxc exec "${CONTAINER_NAME}" -- sleep 10
 
     
+    lxc exec "${CONTAINER_NAME}" -- systemctl start docker
+    lxc exec "${CONTAINER_NAME}" -- systemctl start supervisor
+    lxc exec "${CONTAINER_NAME}" -- sleep 10
+
     # Build Docker image
     lxc exec "${CONTAINER_NAME}" -- bash -c "cd /opt/tdk/docker && docker build --build-arg tag_name=${TDK_TAG} . -t tdk-image --no-cache" || {
         echo "Docker build failed. Checking logs..."
@@ -160,12 +164,12 @@ build_and_run_docker() {
     echo "Starting TDK Docker container..."
     
     # Run Docker container
-    lxc exec "${CONTAINER_NAME}" -- docker run -d \
-        --name tdk-tm \
-        -p 8080:8080 \
-        -p 3306:3306 \
-        --restart unless-stopped \
-        tdk-image
+    #lxc exec "${CONTAINER_NAME}" -- docker run -d \
+    #    --name tdk-tm \
+    #    -p 8080:8080 \
+    #    -p 3306:3306 \
+    #    --restart unless-stopped \
+    #    tdk-image
     
     # Wait for Docker container to start
     sleep 30
