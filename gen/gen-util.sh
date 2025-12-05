@@ -189,80 +189,6 @@ validate_and_hash() {
 }
 
 
-hash_to_string() {
-    local hash="$1"
-
-    # Subtract 1 from hash (as per original function)
-    ((hash--))
-
-    # Extract components
-    local index_num=$((hash % 10))
-    local cust_position=$(((hash / 10) % 10))
-    local release_position=$(((hash / 100) % 10))
-    local name_val=$(((hash / 1000) % 10))
-
-    # Validate ranges
-    if [ $name_val -lt 1 ] || [ $name_val -gt 3 ] ||
-       [ $release_position -gt 1 ] ||
-       [ $cust_position -gt 2 ] ||
-       [ $index_num -gt 99 ]; then
-        echo "Invalid hash"
-        return 1
-    fi
-
-    # Convert name_val back to string
-    local name
-    case "$name_val" in
-        1) name="mv1" ;;
-        2) name="mv2plus" ;;
-        3) name="mv3" ;;
-        *) echo "Invalid hash"
-           return 1 ;;
-    esac
-
-    # Convert release_position back to release number
-    local release
-    case "$release_position" in
-        0) release="r21" ;;
-        1) release="r22" ;;
-        *) echo "Invalid hash"
-           return 1 ;;
-    esac
-
-    # Convert cust_position back to customer_id
-    local customer_id
-    case "$cust_position" in
-        0) customer_id="7" ;;
-        1) customer_id="9" ;;
-        2) customer_id="20" ;;
-        *) echo "Invalid hash"
-           return 1 ;;
-    esac
-
-    # Build the final string
-    local result="$name-$release-$customer_id"
-
-    # Add index if present (non-zero)
-    if [ $index_num -ne 0 ]; then
-        # Format index with leading zeros
-        printf -v formatted_index "%02d" $index_num
-        result="$result-$formatted_index"
-    fi
-
-    echo "$result"
-    return 0
-}
-
-
-# Validate container name format
-validate_container_name() {
-    local name=$1
-    local regex="^(mv1|mv2plus|mv3)-r2[12]-(7|9|20)(-0(0[1-9]|[1-9][0-9]))?$"
-    [[ $name =~ $regex ]]
-    return $?
-}
-
-
 # Generate first MAC address with fixed OUI
 generate_mac1() {
     local container_name=$1
@@ -584,34 +510,6 @@ get_parent_bridge() {
     echo "$parent"
     return 0
 }
-
-get_eth_interface() {
-    local mvstring="$1"
-    # Extract MV version and P number using expanded regex to include vcpe
-    if [[ "$mvstring" =~ ^(mv[123]|mv2plus)-.*-p([1-4])$ || "$mvstring" =~ ^(vcpe)-p([1-4])$ ]]; then
-        local mv_type="${BASH_REMATCH[1]}"
-        local p_num="${BASH_REMATCH[2]}"
-        # Convert p_num to zero-based index for array access
-        local idx=$((p_num - 1))
-
-        # Handle different device types
-        if [ "$mv_type" = "mv3" ]; then
-            # For mv3, eth1..4 based on p1..p4
-            echo "eth$((idx + 1))"
-        elif [ "$mv_type" = "vcpe" ]; then
-            # For vcpe, same as mv3: eth1..4 based on p1..p4
-            echo "eth$((idx + 1))"
-        else
-            # For mv1/mv2plus, eth0..3 based on p1..p4
-            echo "eth$idx"
-        fi
-        return 0
-    else
-        echo "Error: Invalid format. Expected format like mv1-r21-7-p1, mv2plus-r21-7-001-p3, mv3-r21-9-002-p4, or vcpe-p1" >&2
-        return 1
-    fi
-}
-
 
 check_and_create_virt_wlan() {
     # Define the expected interfaces

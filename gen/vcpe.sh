@@ -90,58 +90,58 @@ lxc delete ${containername} -f 2>/dev/null
 sudo bridge vlan add vid $vlan_id dev lan-p1 self
 
 # Create virtual wlan interfaces if suffix is provided
-if [ -n "$suffix" ]; then
-    # Create unique virt-wlan interfaces for this instance
-    wlan_interfaces=("virt-wlan0-${suffix}" "virt-wlan1-${suffix}" "virt-wlan2-${suffix}" "virt-wlan3-${suffix}")
-    missing_wlan=0
+#if [ -n "$suffix" ]; then
+#    # Create unique virt-wlan interfaces for this instance
+#    wlan_interfaces=("virt-wlan0-${suffix}" "virt-wlan1-${suffix}" "virt-wlan2-${suffix}" "virt-wlan3-${suffix}")
+#    missing_wlan=0
 
     # Check if any wlan interfaces are missing
-    for iface in "${wlan_interfaces[@]}"; do
-        if ! ip link show "$iface" &>/dev/null; then
-            missing_wlan=$((missing_wlan + 1))
-        fi
-    done
+#    for iface in "${wlan_interfaces[@]}"; do
+#        if ! ip link show "$iface" &>/dev/null; then
+#            missing_wlan=$((missing_wlan + 1))
+#        fi
+#    done
 
     # Create interfaces if missing
-    if [ $missing_wlan -gt 0 ]; then
-        echo "Creating virtual wlan interfaces for ${containername}..."
+#    if [ $missing_wlan -gt 0 ]; then
+#        echo "Creating virtual wlan interfaces for ${containername}..."
 
         # Calculate radio offset (base offset + 4 wlan interfaces per instance)
         # For suffix 001: radios 5-8, for 002: radios 9-12, etc.
-        radio_offset=$((5 + (offset - 1) * 4))
+#        radio_offset=$((5 + (offset - 1) * 4))
 
         # Check current number of radios
-        current_radios=$(ls -1d /sys/class/ieee80211/phy* 2>/dev/null | wc -l)
-        needed_radios=$((radio_offset + 4))
+#        current_radios=$(ls -1d /sys/class/ieee80211/phy* 2>/dev/null | wc -l)
+#        needed_radios=$((radio_offset + 4))
 
-        if [ $current_radios -lt $needed_radios ]; then
-            echo "Recreating mac80211_hwsim module with ${needed_radios} radios..."
+#        if [ $current_radios -lt $needed_radios ]; then
+#            echo "Recreating mac80211_hwsim module with ${needed_radios} radios..."
             # Unload if loaded
-            sudo modprobe -r mac80211_hwsim 2>/dev/null || true
+#            sudo modprobe -r mac80211_hwsim 2>/dev/null || true
             # Load with enough radios for all instances
-            sudo modprobe mac80211_hwsim radios=${needed_radios}
-            sleep 1
-        fi
+#            sudo modprobe mac80211_hwsim radios=${needed_radios}
+#            sleep 1
+#        fi
 
         # Rename the interfaces for this suffix
-        for i in {0..3}; do
-            wlan_idx=$((radio_offset + i))
-            new_name="virt-wlan${i}-${suffix}"
+#        for i in {0..3}; do
+#            wlan_idx=$((radio_offset + i))
+#            new_name="virt-wlan${i}-${suffix}"
 
-            if ip link show "wlan${wlan_idx}" &>/dev/null; then
-                echo "Renaming wlan${wlan_idx} to ${new_name}"
-                sudo ip link set "wlan${wlan_idx}" down 2>/dev/null || true
-                sudo ip link set "wlan${wlan_idx}" name "${new_name}" 2>/dev/null || true
-                sudo ip link set "${new_name}" up 2>/dev/null || true
-            else
-                echo "Warning: wlan${wlan_idx} not found, may have been renamed already"
-            fi
-        done
-    fi
-else
+#            if ip link show "wlan${wlan_idx}" &>/dev/null; then
+#                echo "Renaming wlan${wlan_idx} to ${new_name}"
+#                sudo ip link set "wlan${wlan_idx}" down 2>/dev/null || true
+#                sudo ip link set "wlan${wlan_idx}" name "${new_name}" 2>/dev/null || true
+#                sudo ip link set "${new_name}" up 2>/dev/null || true
+#            else
+#                echo "Warning: wlan${wlan_idx} not found, may have been renamed already"
+#            fi
+#        done
+#    fi
+#else
     # Use the standard check_and_create_virt_wlan for base vcpe
-    check_and_create_virt_wlan
-fi
+#    check_and_create_virt_wlan
+#fi
 
 # Nvram
 if ! lxc storage volume show default $volumename > /dev/null 2>&1; then
@@ -156,9 +156,9 @@ lxc profile create "$profilename" 2>/dev/null || true
 lxc profile edit "$profilename" < "$M_ROOT/gen/profiles/vcpe.yaml"
 
 # Remove wlan devices from profile (we'll add them back with correct parent names)
-for i in {0..3}; do
-    lxc profile device remove "$profilename" "wlan${i}" 2>/dev/null || true
-done
+#for i in {0..3}; do
+#    lxc profile device remove "$profilename" "wlan${i}" 2>/dev/null || true
+#done
 
 # eth0 interface
 lxc profile device add "$profilename" eth0 nic \
@@ -185,27 +185,27 @@ lxc profile device add "$profilename" nvram disk \
     > /dev/null 2>&1 || true
 
 # Add wlan interfaces with appropriate parent names
-if [ -n "$suffix" ]; then
+#if [ -n "$suffix" ]; then
     # Add wlan interfaces with suffix
-    for i in {0..3}; do
-        lxc profile device add "$profilename" "wlan${i}" nic \
-            nictype=physical \
-            parent="virt-wlan${i}-${suffix}" \
-            name="wlan${i}" \
-            type=nic \
-            > /dev/null 2>&1 || true
-    done
-else
+#    for i in {0..3}; do
+#        lxc profile device add "$profilename" "wlan${i}" nic \
+#            nictype=physical \
+#            parent="virt-wlan${i}-${suffix}" \
+#            name="wlan${i}" \
+#            type=nic \
+#            > /dev/null 2>&1 || true
+#    done
+#else
     # Add standard wlan interfaces for base vcpe
-    for i in {0..3}; do
-        lxc profile device add "$profilename" "wlan${i}" nic \
-            nictype=physical \
-            parent="virt-wlan${i}" \
-            name="wlan${i}" \
-            type=nic \
-            > /dev/null 2>&1 || true
-    done
-fi
+#    for i in {0..3}; do
+#        lxc profile device add "$profilename" "wlan${i}" nic \
+#            nictype=physical \
+#            parent="virt-wlan${i}" \
+#            name="wlan${i}" \
+#            type=nic \
+#            > /dev/null 2>&1 || true
+#    done
+#fi
 
 # Initialize the container without starting it
 lxc init ${imagename} ${containername} -p ${profilename}
