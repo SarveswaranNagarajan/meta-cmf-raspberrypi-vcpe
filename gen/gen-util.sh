@@ -808,7 +808,7 @@ main() {
 
     check_and_create_virt_wlan
 
-    setup_lxd_certificates
+    #setup_lxd_certificates
 
 }
 
