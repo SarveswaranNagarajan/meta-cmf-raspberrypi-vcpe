@@ -806,7 +806,7 @@ main() {
         check_and_create_bridges
     fi
 
-    check_and_create_virt_wlan
+    #check_and_create_virt_wlan //No need to setup wlan for managed bridge device
 
     #setup_lxd_certificates
 
