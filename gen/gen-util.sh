@@ -596,7 +596,8 @@ validate_lan_port() {
 
 
 setup_lxd_certificates() {
-    local lxd_endpoint="${1:-192.168.2.150:8443}"
+    #local lxd_endpoint="${1:-192.168.2.150:8443}"
+    local lxd_endpoint="${1:-10.0.0.194:8443}"
     local cert_dir="$HOME/.config/lxc"
     local cert_validity_days=3650
     
@@ -706,7 +707,7 @@ main() {
 
     #check_and_create_virt_wlan //No need to setup wlan for managed bridge device
 
-    #setup_lxd_certificates
+    setup_lxd_certificates
 
 }
 
