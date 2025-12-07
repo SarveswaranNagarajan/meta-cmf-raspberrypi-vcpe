@@ -20,23 +20,3 @@ devices:
     pool: default
     size: 512MiB
     type: disk
-  wlan0:
-    name: wlan0
-    nictype: physical
-    parent: virt-wlan0
-    type: nic
-  wlan1:
-    name: wlan1
-    nictype: physical
-    parent: virt-wlan1
-    type: nic
-  wlan2:
-    name: wlan2
-    nictype: physical
-    parent: virt-wlan2
-    type: nic
-  wlan3:
-    name: wlan3
-    nictype: physical
-    parent: virt-wlan3
-    type: nic
