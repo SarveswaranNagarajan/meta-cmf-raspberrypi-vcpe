@@ -2,15 +2,44 @@
 
 source gen-util.sh
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    echo "Usage: $0 <path/to/vcpe-image-qemux86.lxc.tar.bz2 or user@host:/path/to/vcpe-image-qemux86.lxc.tar.bz2> [suffix]"
+# Defaults
+wan_bridge="wan"
+
+# Need at least image
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 <image> [suffix] [-b|--wan-bridge <bridge>]"
     echo "Example: $0 image.tar.bz2 001"
+    echo "Example: $0 image.tar.bz2 001 -b br-wan106"
     echo "  Creates container: vcpe-001, profile: vcpe-001, volume: vcpe-001-nvram"
+    echo "Options:"
+    echo "  -b, --wan-bridge <bridge>  Bridge for WAN interface (default: wan)"
     exit 1
 fi
 
-imagefile=$1
-suffix="${2:-}"
+# First arg is always image
+imagefile="$1"
+shift
+
+# Second arg is suffix if it doesn't start with '-'
+suffix=""
+if [ $# -gt 0 ] && [[ ! "$1" == -* ]]; then
+    suffix="$1"
+    shift
+fi
+
+# Parse remaining named options
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -b|--wan-bridge)
+            wan_bridge="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # Validate suffix format if provided (must be 001-099)
 if [ -n "$suffix" ]; then
@@ -163,7 +192,7 @@ lxc profile edit "$profilename" < "$M_ROOT/gen/profiles/vcpe.yaml"
 # eth0 interface
 lxc profile device add "$profilename" eth0 nic \
     nictype=bridged \
-    parent=wan \
+    parent=$wan_bridge \
     hwaddr=$eth0_mac \
     name=eth0 \
     > /dev/null

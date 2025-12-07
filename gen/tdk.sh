@@ -106,7 +106,11 @@ create_tdk_container() {
     
     # Copy Docker files to container
     copy_docker_files
-    
+
+    lxc file push "$M_ROOT/gen/configs/tdk-50-cloud-init.yaml" "${CONTAINER_NAME}/etc/netplan/50-cloud-init.yaml" --uid 0 --gid 0 --mode 600
+    # Applying static ip configuration
+    lxc exec "${CONTAINER_NAME}" -- netplan apply
+
     # Wait for container to be ready
     wait_for_container "${CONTAINER_NAME}"
     
@@ -140,6 +144,11 @@ copy_docker_files() {
 
 build_and_run_docker() {
     echo "Building TDK Docker image (this may take 20-30 minutes)..."
+
+    lxc exec "${CONTAINER_NAME}" -- systemctl start docker
+    lxc exec "${CONTAINER_NAME}" -- systemctl start supervisor
+    lxc exec "${CONTAINER_NAME}" -- sleep 10
+
     
     # Build Docker image
     lxc exec "${CONTAINER_NAME}" -- bash -c "cd /opt/tdk/docker && docker build --build-arg tag_name=${TDK_TAG} . -t tdk-image --no-cache" || {

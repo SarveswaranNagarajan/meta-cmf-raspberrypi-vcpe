@@ -8,7 +8,7 @@ set -e
 source "$(dirname "$0")/gen-util.sh"
 
 CONTAINER_NAME="tdk-base"
-IMAGE_ALIAS="ubuntu/20.04"
+IMAGE_ALIAS="ubuntu/24.04"
 DOCKER_VERSION="24.0.7"
 
 create_tdk_base_container() {
