@@ -14,10 +14,6 @@ The bng containers (devuan chimaera) provide basic configuration and connectivit
 
 lan clients (alpine) connect to a cpe lan port via the lan-p1 (/2/3/4) bridges (vlan). automatically comfigured with dhcp.
 
-## wlan-client containers
-
-wlan clients (alpine) connect their wlan0 80211sim sta to 80211sim ap in the cpe. automatically configured with wpa_supplicant and dhcp.
-
 ## acs (axiros / genie) container (tr069)
 
 The acs container (debian 7) contains an Axiros tr069 cwmp server stack. cpe containers will register and establish the tr069 protocol with the acs. In addition to the acs-ui, auto testing via (soap) is available as well. The Axiros acs image is available to licensees only.
@@ -81,10 +77,6 @@ cpe containers connect to bng containers using a common wan bridge (supporting s
 ## lan-p1/2/3/4
 lan clients connect to cpe containers lan ports using lan-p1..lan-p4 bridges. The cpe containers lan ports and the lan-p1.lan-p4 bridges are vlan configured allowing a large number of client connections to cpe containers lan ports.
 
-
-# mac80211_hwsim
-
-virtual wlan interfaces (wlan0..4) are created using mac80211_hwsim module. wlan0..3 are mapped into the vcpe container (accesspoint). wlan4 is mapped into the wlan-client (station). Wireless station(s) connect to wireless accesspoint(s) across container boundaries.
 
 # Installation
 
@@ -156,11 +148,18 @@ export PATH="$HOME/git/meta-cmf-raspberrypi-vcpe/probes/scripts:$PATH"
 cd $HOME/git/meta-cmf-raspberrypi-vcpe
 
 ```
+# switch to mso_managed_bridge branch
+git checkout mso_managed_bridge
 
 ## Install VCPE bridges
 
+Modify this lxd end point ip address as per your host machine address
+gen/gen-util.sh
+    local lxd_endpoint="${1:-192.168.2.150:8443}"
+gen/boardfarm.sh
+    lxd_endpoint="192.168.2.120:8443"
+    
 Required once after a host reboot. Run the bridges.sh script:
-
 ```text
 bridges.sh
 ```
@@ -224,7 +223,7 @@ root@RaspberryPi-Gateway:~$ systemd-analyze plot
 The vcpe.sh script supports creating multiple independent vCPE container instances using an optional suffix parameter (001-099). Each instance has its own:
 - Unique container name, profile, and NVRAM volume
 - Unique MAC addresses and VLAN ID
-- Unique virtual WLAN interfaces
+
 
 ```text
 # Create first instance (vcpe-001)
@@ -260,7 +259,7 @@ Each instance gets:
 - NVRAM volume: vcpe-{suffix}-nvram
 - VLAN ID: 100 + offset (e.g., 001 → VLAN 101, 002 → VLAN 102)
 - MAC addresses: Base MAC + offset
-- WLAN interfaces: virt-wlan0-{suffix} through virt-wlan3-{suffix}
+
 
 
 ## Install ACS container
@@ -340,20 +339,18 @@ curl -H 'Authorization:Basic dXNlcjEyMzp3ZWJwYUAxMjM0NTY3ODkw' http://10.10.10.2
 ```
 
 
-## Install (lan/wlan) client containers
+## Install (lan) client containers
 
-Run the client-lan / wlan script.
+Run the client-lan.
 
 ```text
 client-lan.sh vcpe-p1
-client-wlan.sh
+
 
 lxc list
 
 +--------------------+---------+---------------------------+---------------------------------------------+
 | client-lan-vcpe-p1 | RUNNING | 10.0.0.158 (eth0)         | 3001:dae:0:e900:216:3eff:fee8:4dc (eth0)    |
-+--------------------+---------+---------------------------+---------------------------------------------+
-| client-wlan        | RUNNING | 10.0.0.152 (wlan0)        | 3001:dae:0:e900:0:ff:fe00:400 (wlan0)       |
 +--------------------+---------+---------------------------+---------------------------------------------+
 ```
 
