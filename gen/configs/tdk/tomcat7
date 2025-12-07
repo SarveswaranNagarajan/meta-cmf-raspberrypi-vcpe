@@ -1,84 +1,44 @@
-#!/bin/bash
-# Tomcat init script for TDK
+##########################################################################
+# If not stated otherwise in this file or this component's Licenses.txt
+# file the following copyright and licenses apply:
+#
+# Copyright 2021 RDK Management
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##########################################################################
 
-### BEGIN INIT INFO
-# Provides:          tomcat7
-# Required-Start:    $local_fs $remote_fs $network
-# Required-Stop:     $local_fs $remote_fs $network
-# Should-Start:      $named
-# Should-Stop:       $named
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start Tomcat.
-# Description:       Start the Tomcat servlet engine.
-### END INIT INFO
+export CATALINA_HOME=/opt/apache-tomcat-7.0.96
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 
-# Tomcat configuration
-TOMCAT_HOME="/opt/apache-tomcat-7.0.96"
-TOMCAT_USER="root"
-JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64"
-CATALINA_HOME="$TOMCAT_HOME"
-CATALINA_BASE="$TOMCAT_HOME"
-CATALINA_PID="$CATALINA_BASE/temp/tomcat.pid"
-CATALINA_OPTS="-Xms512m -Xmx1024m -XX:MaxPermSize=256m"
+export JAVA_OPTS="-server -Xms1024m -Xmx2096m -XX:MaxPermSize=512m -XX:-UseGCOverheadLimit"
 
-export JAVA_HOME
-export CATALINA_HOME
-export CATALINA_BASE
-export CATALINA_OPTS
-
-# Check if Tomcat is running
-is_running() {
-    [ -f "$CATALINA_PID" ] && ps -p `cat $CATALINA_PID` > /dev/null 2>&1
-}
-
-case "$1" in
-    start)
-        if is_running; then
-            echo "Tomcat is already running"
-        else
-            echo "Starting Tomcat..."
-            $CATALINA_HOME/bin/startup.sh
-            sleep 5
-            if is_running; then
-                echo "Tomcat started successfully"
-            else
-                echo "Failed to start Tomcat"
-                exit 1
-            fi
-        fi
-        ;;
-    stop)
-        if is_running; then
-            echo "Stopping Tomcat..."
-            $CATALINA_HOME/bin/shutdown.sh
-            sleep 5
-            if is_running; then
-                echo "Tomcat didn't stop gracefully, killing..."
-                kill -9 `cat $CATALINA_PID`
-                rm -f $CATALINA_PID
-            fi
-            echo "Tomcat stopped"
-        else
-            echo "Tomcat is not running"
-        fi
-        ;;
-    restart)
-        $0 stop
-        sleep 2
-        $0 start
-        ;;
-    status)
-        if is_running; then
-            echo "Tomcat is running"
-        else
-            echo "Tomcat is not running"
-        fi
-        ;;
-    *)
-        echo "Usage: $0 {start|stop|restart|status}"
-        exit 1
-        ;;
+case $1 in
+start)
+ $CATALINA_HOME/bin/startup.sh
+;;
+stop)
+ $CATALINA_HOME/bin/shutdown.sh
+;;
+restart)
+ $CATALINA_HOME/bin/shutdown.sh
+ $CATALINA_HOME/bin/startup.sh
+;;
+force-reload)
+ $CATALINA_HOME/bin/shutdown.sh
+ $CATALINA_HOME/bin/startup.sh
+;;
+status)
+ status tomcat
+;;
 esac
-
 exit 0

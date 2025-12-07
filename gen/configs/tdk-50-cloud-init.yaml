@@ -1,0 +1,39 @@
+# Custom network configuration
+network:
+    version: 2
+    renderer: networkd
+    ethernets:
+        eth0:
+            dhcp4: false
+            dhcp6: false
+            addresses:
+              - 10.10.10.30/24
+              - 2001:dbf:0:1::30/64
+            nameservers:
+              addresses:
+                - 8.8.8.8
+            routes:
+              - to: default
+                via: 10.10.10.1
+                metric: 100
+              - to: default
+                via: 2001:dbf:0:1::1
+                metric: 100
+              - to: 10.100.200.0/24
+                via: 10.10.10.100
+                metric: 0
+              - to: 10.107.200.0/24
+                via: 10.10.10.107
+                metric: 0
+              - to: 10.108.200.0/24
+                via: 10.10.10.108
+                metric: 0
+              - to: 10.120.200.0/24
+                via: 10.10.10.120
+                metric: 0
+              - to: 10.177.200.0/24
+                via: 10.10.10.109
+                metric: 0
+              - to: 10.178.200.0/24
+                via: 10.10.10.109
+                metric: 0
