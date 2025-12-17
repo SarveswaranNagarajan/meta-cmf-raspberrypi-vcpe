@@ -59,8 +59,9 @@ if [ -n "$suffix" ]; then
     fi
 fi
 
-# Check if imagefile matches SCP URL pattern (user@host:)
-if [[ $imagefile =~ ^[^@]+@[^:]+:.+ ]]; then
+# Check if imagefile matches SCP URL pattern (user@host:path or host:path)
+# Skip if it's clearly a local path (starts with /, ./, or ../)
+if [[ ! $imagefile =~ ^\.?\.?/ ]] && [[ $imagefile =~ ^([^@/:]+@)?[a-zA-Z0-9][-a-zA-Z0-9.]*:.+ ]]; then
     mkdir -p ./tmp
     # Extract filename from path
     filename="${imagefile##*/}"
