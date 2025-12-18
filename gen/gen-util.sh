@@ -640,7 +640,7 @@ main() {
 
     #check_and_create_virt_wlan //No need to setup wlan for managed bridge device
 
-    setup_lxd_certificates
+    # setup_lxd_certificates
 
 }
 
