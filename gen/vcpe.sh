@@ -4,15 +4,17 @@ source gen-util.sh
 
 # Defaults
 wan_bridge="wan"
+lan_bridge="lan-p1"
 
 # Need at least image
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <image> [suffix] [-b|--wan-bridge <bridge>]"
+    echo "Usage: $0 <image> [suffix] [-b|--wan-bridge <bridge>] [-l|--lan-bridge <bridge>]"
     echo "Example: $0 image.tar.bz2 001"
-    echo "Example: $0 image.tar.bz2 001 -b br-wan106"
+    echo "Example: $0 image.tar.bz2 001 -b br-wan106 -l br-lan206"
     echo "  Creates container: vcpe-001, profile: vcpe-001, volume: vcpe-001-nvram"
     echo "Options:"
     echo "  -b, --wan-bridge <bridge>  Bridge for WAN interface (default: wan)"
+    echo "  -l, --lan-bridge <bridge>  Bridge for LAN interface (default: lan-p1)"
     exit 1
 fi
 
@@ -32,6 +34,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -b|--wan-bridge)
             wan_bridge="$2"
+            shift 2
+            ;;
+        -l|--lan-bridge)
+            lan_bridge="$2"
             shift 2
             ;;
         *)
@@ -116,8 +122,10 @@ fi
 lxc delete ${containername} -f 2>/dev/null
 
 
-#
-sudo bridge vlan add vid $vlan_id dev lan-p1 self
+# Add VLAN to bridge (only for default lan-p* bridges)
+if [[ $lan_bridge == lan-p* ]]; then
+    sudo bridge vlan add vid $vlan_id dev $lan_bridge self
+fi
 
 # Create virtual wlan interfaces if suffix is provided
 #if [ -n "$suffix" ]; then
@@ -199,13 +207,22 @@ lxc profile device add "$profilename" eth0 nic \
     > /dev/null
 
 # eth1 interface
-lxc profile device add "$profilename" eth1 nic \
-    nictype=bridged \
-    parent=lan-p1 \
-    hwaddr=$eth1_mac \
-    name=eth1 \
-    vlan=$vlan_id \
-    > /dev/null
+if [[ $lan_bridge == lan-p* ]]; then
+    lxc profile device add "$profilename" eth1 nic \
+        nictype=bridged \
+        parent=$lan_bridge \
+        hwaddr=$eth1_mac \
+        name=eth1 \
+        vlan=$vlan_id \
+        > /dev/null
+else
+    lxc profile device add "$profilename" eth1 nic \
+        nictype=bridged \
+        parent=$lan_bridge \
+        hwaddr=$eth1_mac \
+        name=eth1 \
+        > /dev/null
+fi
 
 
 # Attach nvram volume to profile
