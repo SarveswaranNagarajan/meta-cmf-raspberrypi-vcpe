@@ -186,8 +186,13 @@ if ! lxc storage volume show default $volumename > /dev/null 2>&1; then
     lxc storage volume create default $volumename size=4MiB
 fi
 
-lxc image delete ${imagename} 2> /dev/null
-lxc image import $imagefile --alias ${imagename}
+# Import image - always overwrite
+lxc image delete ${imagename} 2>/dev/null
+lxc image import $imagefile --alias ${imagename} 2>/dev/null || {
+    # Same fingerprint exists - delete rdkb images and retry
+    lxc image list --format=csv | grep rdkb | cut -d, -f2 | xargs -r -n1 lxc image delete 2>/dev/null || true
+    lxc image import $imagefile --alias ${imagename}
+}
 
 # Profile - always use base vcpe.yaml as template
 lxc profile create "$profilename" 2>/dev/null || true
