@@ -1,0 +1,37 @@
+From: Rob Vogelaar <revogelaar@gmail.com>
+Date: Mon, 30 Dec 2024 10:00:00 -0700
+Subject: [PATCH] platform_hal: Fix DHCPv6 Option17 vendor suboption encoding
+
+Fix two bugs in DHCPv6 Option 17 (Vendor-specific Information) encoding:
+1. SUBOPTION3 was incorrectly using sub-option code 0002 instead of 0003
+2. Length field was using hex string length instead of byte count
+
+The ascii_to_hex() function returns the hex string length (e.g., 14 for
+"EROUTER"), but the DHCPv6 length field requires the byte count (7).
+
+Signed-off-by: Rob Vogelaar <revogelaar@gmail.com>
+---
+ source/platform/platform_hal.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/source/platform/platform_hal.c b/source/platform/platform_hal.c
+--- a/source/platform/platform_hal.c
++++ b/source/platform/platform_hal.c
+@@ -1,14 +1,14 @@
+         if (!strncmp(subop, "SUBOPTION2", 10))
+         {
+             len = ascii_to_hex(value, hex, sizeof(hex));
+-            snprintf(tmp, sizeof(tmp), "0002%04X%s", len, hex);
++            snprintf(tmp, sizeof(tmp), "0002%04X%s", len/2, hex);
+             strcat(buff, tmp);
+         }
+         else if (!strncmp(subop, "SUBOPTION3", 10))
+         {
+             if (!strcmp(mode, "ETHWAN"))
+             {
+                 len = ascii_to_hex(value, hex, sizeof(hex));
+-                snprintf(tmp, sizeof(tmp), "0002%04X%s", len, hex);
++                snprintf(tmp, sizeof(tmp), "0003%04X%s", len/2, hex);
+                 strcat(buff, tmp);
+             }
+         }
