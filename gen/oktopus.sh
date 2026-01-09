@@ -101,6 +101,8 @@ wget https://github.com/OktopUSP/oktopus/archive/refs/heads/main.zip
 unzip main.zip
 cd /$HOME/oktopus-main/deploy/compose
 sed -i "s/image: mongo/image: mongo:4.4/" docker-compose.yaml
+sed -i "/image: mongo:4.4/a\\    security_opt:\\n      - apparmor:unconfined" docker-compose.yaml
+sed -i "/image:.*nginx/a\\    security_opt:\\n      - apparmor=unconfined" docker-compose.yaml
 COMPOSE_PROFILES=nats,controller,cwmp,mqtt,stomp,ws,adapter,frontend docker compose up -d
 '
 
