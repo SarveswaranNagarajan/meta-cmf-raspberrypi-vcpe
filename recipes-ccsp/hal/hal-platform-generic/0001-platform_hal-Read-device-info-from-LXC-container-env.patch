@@ -1,0 +1,117 @@
+From 9f6aeb6192be3ea3cd5460d0407cd97612adc5fd Mon Sep 17 00:00:00 2001
+From: Rob Vogelaar <revogelaar@gmail.com>
+Date: Tue, 6 Jan 2026 14:07:02 -0800
+Subject: [PATCH] platform_hal: Read device info from LXC container environment
+
+Signed-off-by: Rob Vogelaar <revogelaar@gmail.com>
+---
+ source/platform/platform_hal.c | 69 +++++++++++++++++++++++++++-------
+ 1 file changed, 56 insertions(+), 13 deletions(-)
+
+diff --git a/source/platform/platform_hal.c b/source/platform/platform_hal.c
+index 8ca224e..b465085 100644
+--- a/source/platform/platform_hal.c
++++ b/source/platform/platform_hal.c
+@@ -211,6 +211,45 @@ INT platform_hal_GetModelName(CHAR* pValue)
+     return ret;
+ }
+
++static int get_lxc_env(const char *name, char *value, size_t value_size)
++{
++    FILE *fp = NULL;
++    char buf[MAX_BUFFER_SIZE];
++    size_t name_len = strlen(name);
++    int found = 0;
++
++    fp = fopen("/proc/1/environ", "r");
++    if(NULL == fp)
++    {
++        return RETURN_ERR;
++    }
++
++    /* /proc/1/environ contains null-separated KEY=VALUE pairs */
++    while(fread(buf, 1, 1, fp) == 1)
++    {
++        /* Read until we have a complete KEY=VALUE string */
++        size_t i = 0;
++        buf[i++] = buf[0];
++        while(i < sizeof(buf) - 1 && fread(&buf[i], 1, 1, fp) == 1 && buf[i] != '\0')
++        {
++            i++;
++        }
++        buf[i] = '\0';
++
++        /* Check if this is the variable we're looking for */
++        if(strncmp(buf, name, name_len) == 0 && buf[name_len] == '=')
++        {
++            strncpy(value, buf + name_len + 1, value_size - 1);
++            value[value_size - 1] = '\0';
++            found = 1;
++            break;
++        }
++    }
++
++    fclose(fp);
++    return found ? RETURN_OK : RETURN_ERR;
++}
++
+ INT platform_hal_GetSerialNumber(CHAR* pValue)
+ {
+     char sn[TMP_BUFFER_SIZE] = {'\0'};
+@@ -220,37 +259,41 @@ INT platform_hal_GetSerialNumber(CHAR* pValue)
+     {
+         return RETURN_ERR;
+     }
+-    ret = execute("grep 'Serial' /proc/cpuinfo", sn);
++
++    ret = get_lxc_env("SERIAL_NUMBER", sn, sizeof(sn));
+     if(RETURN_OK != ret)
+     {
+-        printf("\nError %s\n", __func__);
+-    }
+-    else
+-    {
+-        strncpy(pValue, sn, strlen(sn));
++        printf("\nError %s: SERIAL_NUMBER environment variable not set\n", __func__);
++        return RETURN_ERR;
+     }
+
+-    return ret;
++    strncpy(pValue, sn, TMP_BUFFER_SIZE - 1);
++    pValue[TMP_BUFFER_SIZE - 1] = '\0';
++
++    return RETURN_OK;
+ }
+
+ INT platform_hal_GetHardwareVersion(CHAR* pValue)
+ {
+-    int ret = RETURN_ERR;
+     char hwVer[TMP_BUFFER_SIZE] = {'\0'};
+-    if(NULL == pValue )
++    int ret = RETURN_ERR;
++
++    if(NULL == pValue)
+     {
+         return RETURN_ERR;
+     }
+
+-    ret = execute("grep 'Revision' /proc/cpuinfo", hwVer);
++    ret = get_lxc_env("HARDWARE_VERSION", hwVer, sizeof(hwVer));
+     if(RETURN_OK != ret)
+     {
+-        printf("\nError %s\n", __func__);
++        printf("\nError %s: HARDWARE_VERSION environment variable not set\n", __func__);
++        return RETURN_ERR;
+     }
+
+-    strcpy(pValue, hwVer);
++    strncpy(pValue, hwVer, TMP_BUFFER_SIZE - 1);
++    pValue[TMP_BUFFER_SIZE - 1] = '\0';
+
+-    return ret;
++    return RETURN_OK;
+ }
+
+ INT platform_hal_GetSoftwareVersion(CHAR* pValue, ULONG maxSize)
+--
+2.34.1

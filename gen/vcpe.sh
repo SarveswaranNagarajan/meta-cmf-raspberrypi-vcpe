@@ -211,15 +211,10 @@ fi
 # Initialize the container without starting it
 lxc init ${imagename} ${containername} -p ${profilename}
 
-# Create a custom configuration file
-cat << EOF > ./vcpe-config
-CREATION_DATE=$(date +"%Y-%m-%d_%H:%M:%S")
-SERIAL_NUMBER=$(echo ${eth0_mac//:/} | tr '[:lower:]' '[:upper:]')
-HARDWARE_VERSION=1.0
-EOF
-
-lxc file push ./vcpe-config ${containername}/etc/vcpe-config
-rm -f ./vcpe-config
+# Set container environment variables (persist across stop/start/reboot)
+lxc config set ${containername} environment.CREATION_DATE="$(date +"%Y-%m-%d_%H:%M:%S")"
+lxc config set ${containername} environment.SERIAL_NUMBER="$(echo ${eth0_mac//:/} | tr '[:lower:]' '[:upper:]')"
+lxc config set ${containername} environment.HARDWARE_VERSION="1.0"
 
 # Start the container
 lxc start ${containername}
